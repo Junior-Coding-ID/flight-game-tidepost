@@ -1,79 +1,63 @@
-# TIDEPOST — Island Airmail
+# TIDEPOST: SKYWEAVE+ — Branching Air Rally & Landmark Survey
 
-[![make.fun](https://make.fun/badge/best-flight-game-20261126-0057.svg)](https://make.fun/bounty/best-flight-game-20261126-0057)
-[![Rank](https://make.fun/badge/best-flight-game-20261126-0057/junior-coding-id/flight-game-tidepost/rank.svg)](https://make.fun/bounty/best-flight-game-20261126-0057)
-[![Reward](https://make.fun/badge/best-flight-game-20261126-0057/junior-coding-id/flight-game-tidepost/reward.svg)](https://make.fun/bounty/best-flight-game-20261126-0057)
+[![TIDEPOST: SKYWEAVE+ rank](https://make.fun/badge/best-flight-game-20261126-0057/Junior-Coding-ID/flight-game-tidepost/rank.svg)](https://make.fun/bounty/best-flight-game-20261126-0057)
+[![TIDEPOST: SKYWEAVE+ reward](https://make.fun/badge/best-flight-game-20261126-0057/Junior-Coding-ID/flight-game-tidepost/reward.svg)](https://make.fun/bounty/best-flight-game-20261126-0057)
+[![Best Flight Game bounty](https://make.fun/badge/best-flight-game-20261126-0057.svg)](https://make.fun/bounty/best-flight-game-20261126-0057)
 
-**Pulau kecil. Kiriman penting. Satu pesawat.**
+A complete, original flight game that plays offline in a desktop browser from static files. Fly the Tidewing bush plane from Mailhaven to Pelican Bay in a branching air rally: one track, twelve checkpoints, three exclusive forks, eight routes.
 
-TIDEPOST is a bush-flight delivery arcade game: fly the Tidewing T-01
-single-engine bush plane between three islands in a fictional 8×8 km
-archipelago at golden hour, deliver the mail, and land gently enough that
-the cargo — and your score — survives.
+## The rally
 
-## The game
+- **12 checkpoints, 9 flown per run** — 6 shared Open gates plus one branch gate per fork (3 forks × Open/Technical). Route codes OOO–TTT.
+- **The fork's bet** — Open ring: wide cyan circle, 44 m across, 100 + 100a points. Technical octagon: narrow amber vertical octagon, 26 × 32 m, hitbox follows its actual size, 18 + 200a points. Technical only wins above **82% accuracy**. The branch you don't take goes dim (opacity 0.2) and stays out of the way.
+- **Combo** — +10 per prior clean gate in the streak (max +50 a gate) when accuracy ≥ 80%.
+- **Miss** — −40 points and a mandatory retry through a Safe-Approach Respawn 150 m before the gate (R for an instant one). Two consecutive fails skip the gate for 0 points (−80 total). No auto-advance on the first miss, no finish bonus.
+- **Landmark Survey (Fork 03)** — frame the Pelican Bay lighthouse as you pass the survey gate. Effective accuracy A = 0.8P + 0.2F (pass precision P, framing F).
+- **Best possible run** — 9 gates, all Technical at 100% with a full streak: 2,154 points. Medals: bronze 1400, silver 1800, gold 2050. A run lasts 90–150 seconds.
 
-- **Three missions, three islands, three runways:** Mailhaven, Pelican Bay
-  (lighthouse), and Cloudreach (cliff-top weather station, 130 m up).
-  - **M01 First Post** (Easy) — mail sacks, Mailhaven → Pelican Bay.
-  - **M02 Fragile Cargo** (Medium) — ceramics, Pelican Bay → Cloudreach.
-  - **M03 Last Light Express** (Hard) — priority mail, Cloudreach → Mailhaven.
-- **A real flight model, arcade-tuned:** stall speeds (42 kt clean, 34 kt
-  flap), pitch −18°…+20°, bank ±50°, climb/descent limits, a stall that
-  drops the nose and sinks the wing, flaps, brakes, and a ground roll with
-  rotate speed.
-- **Navigation that matters:** a route gate on the extended centreline and
-  a tight 22 m approach gate on the 0.065 glide slope, with a heading tape,
-  bearing/distance readout, minimap, and alignment/glide needles.
-- **Scoring out of 1000:** cargo 350 + landing 350 + time 200 + two gates
-  at 50 each, with bronze/silver/gold medals per mission. A landing is
-  judged on vertical speed, ground speed, heading error and bank — and a
-  crash tells you exactly why ("TOUCHDOWN TOO FAST — 89 KT").
-- **Fuel and damage turn a sortie into decisions:** burn fuel with the
-  throttle, mind the gauge, and keep the cargo intact.
-- **Chase view, low-poly 3D, no libraries:** a software renderer draws
-  flat-shaded terrain, sea, sky, runways, landmarks, clouds and the
-  Tidewing itself on a plain canvas. No network requests, no remote fonts
-  or textures — everything is a file in `game/`.
+## Play
 
-## Controls (keyboard alone flies every mission)
+Open `game/index.html` in desktop Chrome. Keyboard and mouse, no network.
 
-| Keys | Action |
+| Key | Action |
 | --- | --- |
 | W / S | Pitch down / up |
-| A / D | Roll left / right — bank to turn |
+| A / D | Roll left / right |
 | Q / E | Rudder |
 | I / K | Throttle up / down |
 | F | Flaps |
-| B / Space | Brakes on the ground |
+| B / Space | Brakes |
 | C / V | Camera mode / reset view |
 | M | Minimap on / off |
-| Mouse | Hold left = virtual stick, wheel = throttle, right-drag = look around |
-| Esc / P | Pause · R (hold) — restart · H — help |
+| R | Respawn after a miss (hold R to restart) |
+| Esc / P | Pause |
+| H | Help |
 
-## Play it
+The HUD shows altitude, speed and heading on the tape, the next gate with bearing and distance, the route code, streak, misses, and the fork banner ("FORK 0X/03 — CHOOSE ONE") with the survey framing meter at the last fork.
 
-```sh
-node serve.ts
-# open http://localhost:8080
-```
+## How it is built
 
-No build step: `game/index.html` opens in desktop Chrome and plays
-offline. Screenshots of the four key moments are in `screenshots/`
-(cover first); `?shot=1..4` freezes the matching posed frame.
+Canvas 2D software renderer — the same stack as v1 (flat-shaded triangles painted back to front on a 2D canvas, no WebGL, no library, no textures). Node 22 program at `main.ts` copies `game/` and `screenshots/` into the output directory, writes `entry.txt`, and writes `dossier.json` with `buildDossier` from `vendor/makefun-game.ts` (the kit's file, unchanged).
 
-## Structure
+The files the dossier highlights:
 
-The source is split into one-job modules under `game/src/` — flight
-physics (`flightPhysics.js`, `groundPhysics.js`), landing judgement
-(`landingEvaluator.js`), cargo and fuel (`cargoCondition.js`,
-`aircraftResources.js`), the chase camera (`chaseCamera.js`), the world
-(`terrainGenerator.js`, `world.js`, `worldRenderer.js`), navigation
-(`navigationSystem.js`), missions and scoring (`missionController.js`,
-`scoringSystem.js`), HUD and minimap (`hudRenderer.js`,
-`minimapRenderer.js`), presentation (`presentationSystem.js`), input,
-procedural audio, and particles.
+- `game/src/routeGraph.js` — the 12-checkpoint graph: spine, forks, survey gates.
+- `game/src/routeController.js` — forks, misses, retries, Safe-Approach Respawn.
+- `game/src/gateGeometry.js` — circle vs octagon hit tests, precision.
+- `game/src/surveyEvaluator.js` — lighthouse framing, A = 0.8P + 0.2F.
+- `game/src/scoringSystem.js` — Open 100+100a, Technical 18+200a, combo, miss.
+- `game/src/hudRenderer.js` — instruments plus the fork banner and survey meter.
+- `game/src/runResults.js` — the run's story: route code, per-gate table, survey.
+
+## Screenshots
+
+Real renders of the game's own code (headless Chromium, 1280×720, `?shot=N` pose harness in `game/src/shots.js`):
+
+1. `1-choose-your-route.png` — approaching Fork 01, both branch gates ahead, banner up.
+2. `2-landmark-survey.png` — at the Fork 03 survey gate, lighthouse framed.
+3. `3-precision-finish.png` — through the final approach gate toward Pelican Bay.
+4. `4-run-results.png` — delivered at Pelican Bay with the rally report.
 
 ## License
 
-MIT — see [LICENSE](LICENSE).
+MIT — see `LICENSE`.

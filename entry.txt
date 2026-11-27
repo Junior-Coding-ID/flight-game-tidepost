@@ -1,0 +1,15 @@
+TIDEPOST: SKYWEAVE+ — Branching Air Rally & Landmark Survey
+
+One rally, twelve checkpoints, three forks. Fly the Tidewing bush plane
+from Mailhaven to Pelican Bay through six shared gates, and at each of
+three forks choose: the wide Open ring (cyan, 100-200 points) or the
+narrow Technical octagon (amber, 18-218 points). Technical only wins
+above 82% accuracy. At the last fork, frame the Pelican Bay lighthouse
+as you pass the survey gate: accuracy A = 0.8P + 0.2F. Chain clean gates
+for combo (+10 per prior clean gate, max +50). Miss a gate: -40 and a
+mandatory retry 150 m before it; two fails skip it for 0 points.
+Eight routes (OOO-TTT), 90-150 seconds a run, no finish bonus.
+
+Play: W/S pitch, A/D roll, Q/E rudder, I/K throttle, F flaps, B brake,
+C camera, M map, R respawn after a miss (hold R to restart), Esc pause.
+Keyboard and mouse, desktop Chrome, no network.
