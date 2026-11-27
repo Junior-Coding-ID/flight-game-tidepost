@@ -8,6 +8,13 @@ import { clamp, lerp, makeViewBasis, projectPoint, normalize, cross, sub, dot, r
 import { terrainHeight, sampleTerrainGrid } from './terrainGenerator.js';
 import { runwayCorners, runwayDashes, LANDMARKS, CLOUDS } from './world.js';
 import { buildTidewingMesh, buildPropellerMesh } from './aircraftModel.js';
+import { octagonCorners } from './gateGeometry.js';
+
+// A '#rrggbb' colour as its 'r, g, b' list, for rgba() strings.
+function hexToRgbList(hex) {
+  const rgb = hexRgb(hex);
+  return `${rgb[0]}, ${rgb[1]}, ${rgb[2]}`;
+}
 
 const SUN = normalize(WORLD.sunDir);
 const FOV_DEG = 68;
@@ -298,19 +305,55 @@ export function renderWorld(ctx, scene) {
     });
   }
 
-  // Gates: glowing rings the pilot flies through.
+  // Gates: glowing rings the pilot flies through. Open gates are cyan
+  // circles (44 m); Technical gates are amber vertical octagons (26x32)
+  // whose hitbox follows their actual size. A branch the pilot did not
+  // take is dimmed to 0.2; a passed gate turns green; a survey gate gets
+  // a second ring so the pilot knows the lighthouse counts here.
   for (const gate of gates) {
     const g = projectPoint(gate.pos, eye, basis, focal, cx, cy);
     if (!g) continue;
-    const rPx = (gate.radiusM * focal) / g.depth;
-    if (rPx < 2 || rPx > width * 2) continue;
-    ctx.strokeStyle = gate.passed ? 'rgba(120, 220, 140, 0.95)' : 'rgba(255, 214, 110, 0.95)';
-    ctx.lineWidth = Math.max(2, rPx * 0.06);
-    ctx.beginPath();
-    ctx.arc(g.x, g.y, rPx, 0, Math.PI * 2);
-    ctx.stroke();
-    ctx.fillStyle = gate.passed ? 'rgba(120, 220, 140, 0.12)' : 'rgba(255, 214, 110, 0.10)';
-    ctx.fill();
+    const dimmed = gate.active === false;
+    ctx.save();
+    if (dimmed) ctx.globalAlpha = 0.2;
+    const baseColor = gate.passed ? '120, 220, 140' : hexToRgbList(gate.color || '#ffd66e');
+    if (gate.shape === 'octagon') {
+      const corners = octagonCorners(gate)
+        .map((c) => projectPoint(c, eye, basis, focal, cx, cy))
+        .filter(Boolean);
+      if (corners.length === 8) {
+        ctx.strokeStyle = `rgba(${baseColor}, 0.95)`;
+        ctx.lineWidth = 3;
+        ctx.beginPath();
+        corners.forEach((c, i) => (i === 0 ? ctx.moveTo(c.x, c.y) : ctx.lineTo(c.x, c.y)));
+        ctx.closePath();
+        ctx.stroke();
+        ctx.fillStyle = `rgba(${baseColor}, 0.10)`;
+        ctx.fill();
+      }
+    } else {
+      const rPx = (gate.radiusM * focal) / g.depth;
+      if (rPx < 2 || rPx > width * 2) {
+        ctx.restore();
+        continue;
+      }
+      ctx.strokeStyle = `rgba(${baseColor}, 0.95)`;
+      ctx.lineWidth = Math.max(2, rPx * 0.06);
+      ctx.beginPath();
+      ctx.arc(g.x, g.y, rPx, 0, Math.PI * 2);
+      ctx.stroke();
+      ctx.fillStyle = `rgba(${baseColor}, 0.12)`;
+      ctx.fill();
+      // Survey gates: a second, wider ring so they read as special.
+      if (gate.survey && !gate.passed) {
+        ctx.strokeStyle = `rgba(255, 255, 255, 0.7)`;
+        ctx.lineWidth = 2;
+        ctx.beginPath();
+        ctx.arc(g.x, g.y, rPx * 1.25, 0, Math.PI * 2);
+        ctx.stroke();
+      }
+    }
+    ctx.restore();
   }
 
   // The Tidewing itself, propeller spinning.

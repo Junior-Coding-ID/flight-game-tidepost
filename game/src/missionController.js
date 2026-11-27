@@ -1,20 +1,25 @@
-// missionController — the flight's state machine and its referee.
-// briefing → ground roll → airborne → touchdown → rollout → delivered,
-// with crash, stranded and out-of-fuel endings on the way. It owns the
-// timer, the gates, the cargo, the fuel and the delivery check, and it
-// hands the score to scoringSystem.js when the wheels finally stop.
+// missionController — the rally's state machine and its referee.
+// briefing → ground roll → airborne (9 gates, 3 forks) → touchdown →
+// rollout → delivered, with crash, stranded and out-of-fuel endings on
+// the way. It owns the timer, the route, the cargo, the fuel and the
+// delivery check, and it hands the score to scoringSystem.js when the
+// wheels finally stop.
 //
-// Delivery succeeds only when the aircraft stops (<= 3 kt for 1 second)
-// on the destination runway.
+// A miss does not end the run: the route controller orders a mandatory
+// retry (Safe-Approach Respawn 150 m before the gate, or the R key for
+// an instant one). After 2 consecutive fails the gate is skipped for
+// 0 points. Delivery still succeeds only when the aircraft stops
+// (<= 3 kt for 1 second) on the destination runway.
 
 import { RUNWAYS, missionById } from './config.js';
 import { clamp } from './math3d.js';
 import { createAircraftState } from './flightPhysics.js';
 import { createCargo, updateCargoCondition, applyTouchdownCargoDamage } from './cargoCondition.js';
 import { createResources, updateFuel } from './aircraftResources.js';
-import { createNavigation, checkGatePass } from './navigationSystem.js';
+import { createNavigation } from './navigationSystem.js';
 import { classifyTouchdown } from './landingEvaluator.js';
 import { calculateDeliveryScore } from './scoringSystem.js';
+import { updateRoute, respawnPose, routeCode } from './routeController.js';
 
 export const PHASES = ['briefing', 'ground', 'airborne', 'rollout', 'delivered', 'crashed', 'stranded'];
 
@@ -23,10 +28,12 @@ export function createMissionRun(missionId) {
   const fromRunway = RUNWAYS[mission.from];
   const plane = createAircraftState(mission, fromRunway);
   plane.sensitivity = mission.cargo.sensitivity;
+  const nav = createNavigation(missionId);
   return {
     mission,
     plane,
-    nav: createNavigation(missionId),
+    nav,
+    route: nav.route,
     cargo: createCargo(mission.cargo.sensitivity),
     resources: createResources(mission.fuel),
     phase: 'briefing',
@@ -39,6 +46,7 @@ export function createMissionRun(missionId) {
     events: [],
     message: null,
     messageTimerSec: 0,
+    surveyFraming: 0,
   };
 }
 
@@ -77,6 +85,25 @@ function runwayUnder(plane) {
   return onStrip ? best : null;
 }
 
+// The Safe-Approach Respawn: put the aircraft 150 m before the missed
+// gate (or fork), on the leg heading at gate altitude, 65 kt, airborne.
+export function applyRespawn(run, target) {
+  const pose = respawnPose(run.route, target);
+  const plane = run.plane;
+  plane.pos = { ...pose.pos };
+  plane.headingDeg = pose.headingDeg;
+  plane.pitchDeg = 0;
+  plane.bankDeg = 0;
+  plane.speedKt = pose.speedKt;
+  plane.vsFpm = 0;
+  plane.throttle = 0.6;
+  plane.flaps = false;
+  plane.onGround = false;
+  plane.airborne = true;
+  plane.airborneOnce = true;
+  run.phase = 'airborne';
+}
+
 export function updateMissionRun(run, dt, physicsEvent) {
   const { plane } = run;
   const events = [];
@@ -99,8 +126,15 @@ export function updateMissionRun(run, dt, physicsEvent) {
   }
   if (run.phase === 'airborne') {
     updateCargoCondition(run.cargo, plane, dt);
-    const gate = checkGatePass(run.nav, plane);
-    if (gate) events.push({ type: 'gate', gate });
+    const routeEvents = updateRoute(run.route, plane, dt, run.surveyFraming);
+    for (const e of routeEvents) {
+      if (e.type === 'respawn') {
+        applyRespawn(run, e.target);
+        events.push({ type: 'respawned', target: e.target });
+      } else {
+        events.push(e);
+      }
+    }
     if (run.timerRunning) run.timeSec += dt;
   }
 
@@ -120,6 +154,7 @@ export function updateMissionRun(run, dt, physicsEvent) {
     if (landing.kind === 'crash') {
       run.phase = 'crashed';
       run.timerRunning = false;
+      run.score = calculateDeliveryScore(run);
       events.push({ type: 'crashed', landing });
     } else {
       run.phase = 'rollout';
@@ -166,7 +201,10 @@ export function missionProgress(run) {
     fuel: run.resources.fuel,
     damage: run.resources.damage,
     cargoHealth: run.cargo.health,
-    gatesPassed: run.nav.gates.filter((g) => g.passed).length,
-    gatesTotal: run.nav.gates.length,
+    gatesPassed: run.nav.graph.gates.filter((g) => g.active && g.passed).length,
+    gatesTotal: run.nav.graph.flownCount,
+    routeCode: routeCode(run.route),
+    streak: run.route.streak,
+    misses: run.route.misses,
   };
 }

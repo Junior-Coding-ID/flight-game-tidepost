@@ -98,65 +98,57 @@ export const ISLANDS = [
 
 export const MISSIONS = [
   {
-    id: 'M01',
-    code: 'M01',
-    name: 'First Post',
+    id: 'R01',
+    code: 'R01',
+    name: 'Skyweave Rally',
     from: 'mailhaven',
     to: 'pelican',
-    difficulty: 'Easy',
-    cargo: { label: 'Mail sacks', sensitivity: 0.75 },
-    parSec: 110,
-    capSec: 155,
+    difficulty: 'Rally',
+    cargo: { label: 'Survey mail', sensitivity: 0.75 },
+    parSec: 120,
+    capSec: 180,
     fuel: 100,
-    medals: { bronze: 450, silver: 700, gold: 850 },
+    medals: { bronze: 1400, silver: 1800, gold: 2050 },
     briefing:
-      'First run of the day. Lift the mail sacks out of Mailhaven, cross the bay, and set the Tidewing down gently on Pelican Bay. Smooth beats fast.',
-    tips: 'Rotate near 55 kt. Keep the glide slope needle centred on final.',
-  },
-  {
-    id: 'M02',
-    code: 'M02',
-    name: 'Fragile Cargo',
-    from: 'pelican',
-    to: 'cloudreach',
-    difficulty: 'Medium',
-    cargo: { label: 'Ceramics', sensitivity: 1.4 },
-    parSec: 130,
-    capSec: 175,
-    fuel: 88,
-    medals: { bronze: 480, silver: 720, gold: 860 },
-    briefing:
-      'A crate of island ceramics for the weather station on Cloudreach. The cargo hates hard landings, the cliff runway sits 130 m up, and fuel is tight. Fly like the plates are yours.',
-    tips: 'Climb early — Cloudreach is high. Flaps down early, throttle gentle.',
-  },
-  {
-    id: 'M03',
-    code: 'M03',
-    name: 'Last Light Express',
-    from: 'cloudreach',
-    to: 'mailhaven',
-    difficulty: 'Hard',
-    cargo: { label: 'Priority mail', sensitivity: 1.0 },
-    parSec: 145,
-    capSec: 190,
-    fuel: 92,
-    medals: { bronze: 500, silver: 740, gold: 870 },
-    briefing:
-      'Last light, last flight. Priority mail from the high station back to Mailhaven before the sun drops into the sea. Longest leg, lowest sun, no excuses.',
-    tips: 'Use the full runway. Trade a little altitude for speed on the way down.',
+      'One rally, twelve checkpoints, three forks. Fly the shared gates, then choose at every fork: the wide Open ring is safe, the narrow Technical octagon pays more if you fly it clean. At the last fork, frame the Pelican Bay lighthouse as you pass the survey gate. Miss a gate and you go back 150 m and try again.',
+    tips: 'Open pays 100-200, Technical pays 18-218 — Technical only wins above 82% accuracy. Chain clean gates for combo.',
   },
 ];
 
 export const SCORING = {
-  maxTotal: 1000,
-  cargo: 350,
-  landing: 350,
-  time: 200,
-  gateEach: 50,
-  landingPoints: { perfect: 350, good: 300, hard: 180, crash: 0 },
-  // Hard-landing cargo penalties (the x0.65 hard-landing multiplier is gone).
-  hardLandingCargoPenalty: 8,
-  veryHardLandingCargoPenalty: 12,
+  // SKYWEAVE+ rally scoring (FINAL LOCK v2, corrected).
+  // Open gate: 100 + 100a. Technical gate: 18 + 200a. Breakeven 82%.
+  // Combo: +10 per prior clean gate in the streak (max +50) when a >= 80%.
+  // Miss: -40, mandatory retry; after 2 consecutive fails the gate is
+  // skipped for 0 points (-80 total). No finish bonus.
+  openBase: 100,
+  openPerAccuracy: 100,
+  techBase: 18,
+  techPerAccuracy: 200,
+  breakevenAccuracy: 0.82,
+  comboPerStreak: 10,
+  comboMax: 50,
+  comboMinAccuracy: 0.8,
+  missPenalty: 40,
+  maxRetries: 2,
+  respawnDistanceM: 150,
+};
+
+// Route + gate geometry for the rally (FINAL LOCK v2).
+export const RALLY = {
+  gatesDefined: 12,
+  gatesFlown: 9,
+  forks: 3,
+  openColor: '#4DE2E6',
+  techColor: '#FFC247',
+  openDiameterM: 44,
+  openRadiusM: 22,
+  techHalfWM: 13,
+  techHalfHM: 16,
+  surveyForkIndex: 2,
+  surveyLandmarkId: 'lighthouse-pelican',
+  framingMaxErrorDeg: 25,
+  branchOffsetM: 280,
 };
 
 export const GATES = {

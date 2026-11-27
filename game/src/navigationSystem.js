@@ -1,11 +1,14 @@
-// navigationSystem — where to go next, and how far off the line you are.
-// Bearing and distance to the destination, the next gate, and the two
-// glide-slope needles (alignment and height) the pilot flies on final.
-// Pure geometry: it reads the aircraft and the mission, it changes nothing.
+// navigationSystem — where to go next on the rally, and how far off
+// the line you are. Bearing and distance to the next gate (or the fork
+// midpoint while the choice is open), and the two glide-slope needles
+// on final. Pure geometry: it reads the aircraft and the route, it
+// changes nothing. The route itself lives in routeController.js.
 
 import { GATES, RUNWAYS } from './config.js';
 import { angleDiffDeg, clamp, distance2D, headingForwardDeg } from './math3d.js';
-import { runwayThreshold, computeMissionGates } from './world.js';
+import { runwayThreshold } from './world.js';
+import { buildRouteGraph } from './routeGraph.js';
+import { createRouteState, currentTarget, gatesFlown } from './routeController.js';
 
 export function bearingToDeg(from, to) {
   const dx = to.x - from.x;
@@ -15,32 +18,23 @@ export function bearingToDeg(from, to) {
 }
 
 export function createNavigation(missionId) {
+  const graph = buildRouteGraph();
   return {
-    gates: computeMissionGates(missionId),
+    graph,
+    route: createRouteState(graph),
+    // The renderer draws every defined gate; inactive branches dim.
+    gates: graph.gates,
     nextGateIndex: 0,
   };
 }
 
-// The next thing the pilot must fly through, or the runway itself.
-export function currentTarget(nav, mission) {
-  if (nav.nextGateIndex < nav.gates.length) return nav.gates[nav.nextGateIndex];
+// The next thing the pilot must fly through: the next gate, the fork
+// midpoint while the choice is open, or the runway once the rally is done.
+export function currentTargetOf(nav, mission) {
+  const target = currentTarget(nav.route);
+  if (target) return target;
   const runway = RUNWAYS[mission.to];
   return { id: 'runway', label: runway.name, pos: runwayThreshold(runway), radiusM: runway.widthM };
-}
-
-export function checkGatePass(nav, plane) {
-  if (nav.nextGateIndex >= nav.gates.length) return null;
-  const gate = nav.gates[nav.nextGateIndex];
-  const dx = plane.pos.x - gate.pos.x;
-  const dy = plane.pos.y - gate.pos.y;
-  const dz = plane.pos.z - gate.pos.z;
-  const dist = Math.sqrt(dx * dx + dy * dy + dz * dz);
-  if (dist <= gate.radiusM) {
-    gate.passed = true;
-    nav.nextGateIndex += 1;
-    return gate;
-  }
-  return null;
 }
 
 // Glide guidance on final: two needles, -1..1, for the alignment indicator.
@@ -68,7 +62,7 @@ export function glideGuidance(plane, runway) {
 
 export function navigationReadout(plane, nav, mission) {
   const runway = RUNWAYS[mission.to];
-  const target = currentTarget(nav, mission);
+  const target = currentTargetOf(nav, mission);
   const bearing = bearingToDeg(plane.pos, target.pos);
   const distanceM = distance2D(plane.pos, target.pos);
   const headingError = angleDiffDeg(bearing, plane.headingDeg);
@@ -79,7 +73,11 @@ export function navigationReadout(plane, nav, mission) {
     distanceM: Math.round(distanceM),
     headingErrorDeg: Math.round(headingError),
     glide,
-    gatesPassed: nav.gates.filter((g) => g.passed).length,
-    gatesTotal: nav.gates.length,
+    gatesPassed: gatesFlown(nav.route),
+    gatesTotal: nav.graph.flownCount,
+    routeCode: nav.route.committed.map((c) => c ?? '?').join(''),
+    streak: nav.route.streak,
+    misses: nav.route.misses,
+    survey: nav.route.survey,
   };
 }

@@ -5,6 +5,7 @@
 // aircraft stays visible beside it.
 
 import { MISSIONS } from './config.js';
+import { buildRunResults } from './runResults.js';
 import { cargoLabel } from './cargoCondition.js';
 
 function panel(ctx, x, y, w, h) {
@@ -44,14 +45,15 @@ export function renderMenu(ctx, state, width, height) {
   ctx.fillRect(0, height * 0.45, width, height * 0.55);
 
   title(ctx, cx, 110, 'TIDEPOST', 84, '#f5f0dc');
-  title(ctx, cx, 168, 'I S L A N D   A I R M A I L', 24, '#ffd66e');
-  line(ctx, cx, 210, 'Pulau kecil. Kiriman penting. Satu pesawat.', 18, 'rgba(245,240,220,0.85)');
+  title(ctx, cx, 168, 'S K Y W E A V E +', 24, '#ffd66e');
+  line(ctx, cx, 210, 'Branching Air Rally & Landmark Survey — one track, three forks, eight routes.', 18, 'rgba(245,240,220,0.85)');
 
-  // Mission cards, one row of three.
+  // Mission cards, one row, centred for however many missions there are.
   const cardW = 300;
   const cardH = 190;
   const gap = 24;
-  const x0 = cx - (cardW * 3 + gap * 2) / 2;
+  const n = state.missions.length;
+  const x0 = cx - (cardW * n + gap * (n - 1)) / 2;
   state.missions.forEach((m, i) => {
     const x = x0 + i * (cardW + gap);
     const y = 260;
@@ -69,10 +71,11 @@ export function renderMenu(ctx, state, width, height) {
     line(ctx, x + cardW / 2, y + 150, best ? `Best ${best} / 1000  ${bestMedal(best, m)}` : 'Not flown yet', 14, best ? '#7fd08a' : 'rgba(245,240,220,0.6)');
   });
 
-  line(ctx, cx, 500, '← → choose a mission   •   ENTER fly   •   H help', 16);
+  line(ctx, cx, 500, 'ENTER fly   •   H help', 16);
   line(ctx, cx, 530, 'W/S pitch   A/D roll   Q/E yaw   I/K throttle   F flaps   B brake   C camera   M map', 14, 'rgba(245,240,220,0.7)');
-  line(ctx, cx, 560, 'Keyboard alone can fly every mission. Mouse: hold left to steer, wheel for throttle.', 14, 'rgba(245,240,220,0.7)');
-  line(ctx, cx, height - 30, 'TIDEPOST v1.1 — an original game. Fly the mail home.', 13, 'rgba(245,240,220,0.55)');
+  line(ctx, cx, 560, 'At each fork: OPEN ring (cyan, 100–200 pts) or TECHNICAL octagon (amber, 18–218 pts).', 14, 'rgba(245,240,220,0.7)');
+  line(ctx, cx, 584, 'Technical only wins above 82% accuracy. Miss a gate: −40, then you respawn 150 m before it.', 14, 'rgba(245,240,220,0.7)');
+  line(ctx, cx, height - 30, 'TIDEPOST v2.0 SKYWEAVE+ — an original game. Fly the mail home.', 13, 'rgba(245,240,220,0.55)');
 }
 
 function bestMedal(score, m) {
@@ -109,6 +112,7 @@ export function renderBriefing(ctx, run, width, height) {
   ly += 34;
   line(ctx, width / 2, ly, `Cargo: ${m.cargo.label}  •  Par ${m.parSec}s  •  Fuel ${m.fuel}  •  Medals ${m.medals.bronze}/${m.medals.silver}/${m.medals.gold}`, 14, '#ffd66e');
   line(ctx, width / 2, ly + 28, m.tips, 14, 'rgba(245,240,220,0.8)');
+  line(ctx, width / 2, ly + 54, '9 gates flown (6 shared + 1 per fork)  •  Survey at Fork 03: A = 0.8P + 0.2F', 13, '#4de2e6');
   line(ctx, width / 2, y + h - 34, 'ENTER — start the engine    •    ESC — back', 15);
 }
 
@@ -164,30 +168,44 @@ export function renderCrash(ctx, run, width, height) {
 
 export function renderReport(ctx, run, width, height) {
   const score = run.score;
-  const w = 430; // <= 34% of a 1280 frame: the aircraft stays visible.
-  const h = 400;
-  const x = width - w - 32;
+  const results = buildRunResults(run);
+  const w = 460; // <= 36% of a 1280 frame: the aircraft stays visible.
+  const h = 640;
+  const x = width - w - 24;
   const y = (height - h) / 2;
   panel(ctx, x, y, w, h);
   const cx = x + w / 2;
-  title(ctx, cx, y + 40, score.delivered ? 'DELIVERED!' : 'STRANDED', 30, score.delivered ? '#7fd08a' : '#ffd66e');
-  title(ctx, cx, y + 88, `${score.total} / 1000`, 44, '#ffd66e');
-  line(ctx, cx, y + 122, score.medal === 'NONE' ? 'No medal this time' : `${score.medal} MEDAL`, 16, score.medal === 'NONE' ? 'rgba(245,240,220,0.7)' : '#ffd66e');
+  title(ctx, cx, y + 36, score.delivered ? 'DELIVERED!' : 'STRANDED', 30, score.delivered ? '#7fd08a' : '#ffd66e');
+  title(ctx, cx, y + 80, `${score.total}`, 44, '#ffd66e');
+  line(ctx, cx, y + 112, `ROUTE ${results.routeCode}  •  ${score.medal === 'NONE' ? 'No medal this time' : `${score.medal} MEDAL`}`, 16, score.medal === 'NONE' ? 'rgba(245,240,220,0.7)' : '#ffd66e');
   const b = score.breakdown;
   const rows = [
-    ['Cargo', `${b.cargo} / 350`, `${Math.round(run.cargo.health)}% intact`],
-    ['Landing', `${b.landing} / 350`, run.landing ? run.landing.label : '—'],
-    ['Time', `${b.time} / 200`, `${score.timeSec}s (par ${run.mission.parSec}s)`],
-    ['Gates', `${b.gates} / 100`, `${b.gatesPassed} of ${b.gatesTotal} flown`],
+    ['Gates', `${b.gates}`, `${b.gatesPassed} of ${b.gatesTotal} flown`],
+    ['Combo', `+${b.combo}`, `best streak ×${b.bestStreak}`],
+    ['Miss', `${b.miss}`, `${b.misses} miss${b.misses === 1 ? '' : 'es'} at −40`],
+    ['Survey', results.survey ? `${Math.round(results.survey.accuracy * 100)}%` : '—', results.survey ? `P ${Math.round(results.survey.precision * 100)}%  F ${Math.round(results.survey.framing * 100)}%` : 'no survey gate flown'],
+    ['Time', `${score.timeSec}s`, `par ${run.mission.parSec}s`],
   ];
-  let ly = y + 168;
+  let ly = y + 152;
   for (const [label, pts, note] of rows) {
     line(ctx, x + 24, ly, label, 16, 'rgba(245,240,220,0.9)', 'left');
     line(ctx, x + w - 24, ly, pts, 16, '#f5f0dc', 'right');
     line(ctx, x + 24, ly + 20, note, 12, 'rgba(245,240,220,0.6)', 'left');
-    ly += 48;
+    ly += 44;
   }
-  line(ctx, cx, y + h - 30, 'R — fly again      ESC — menu', 14);
+  // Per-gate table, one line each.
+  line(ctx, x + 24, ly + 6, 'GATE', 12, 'rgba(245,240,220,0.6)', 'left');
+  line(ctx, x + w - 24, ly + 6, 'ACC  PTS', 12, 'rgba(245,240,220,0.6)', 'right');
+  ly += 26;
+  for (const g of results.gates) {
+    const acc = g.accuracy === null ? '—' : `${Math.round(g.accuracy * 100)}%`;
+    const pts = g.passed ? `+${g.points + g.combo}` : 'missed';
+    const color = g.kind === 'technical' ? '#ffc247' : '#4de2e6';
+    line(ctx, x + 24, ly, `${g.id} ${g.kind === 'technical' ? 'TECH' : 'OPEN'}${g.survey ? ' · SURVEY' : ''}`, 12, color, 'left');
+    line(ctx, x + w - 24, ly, `${acc}  ${pts}`, 12, '#f5f0dc', 'right');
+    ly += 20;
+  }
+  line(ctx, cx, y + h - 28, 'R — fly again      ESC — menu', 14);
 }
 
 export function missionMenuData() {

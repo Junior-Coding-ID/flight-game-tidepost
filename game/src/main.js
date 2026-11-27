@@ -1,4 +1,4 @@
-// main — TIDEPOST: ISLAND AIRMAIL. Bootstrap, the game loop, and the
+// main — TIDEPOST: SKYWEAVE+. Bootstrap, the game loop, and the
 // screen flow: menu → briefing → flying → delivered / crashed.
 // The loop is fixed-timestep-ish (dt clamped), the canvas is a fixed
 // 1280x720 backing store scaled by CSS, and ?shot=N freezes a posed
@@ -32,6 +32,7 @@ import {
   updateChaseCamera,
 } from './chaseCamera.js';
 import { parseShotParam, applyShotPose } from './shots.js';
+import { framingAccuracy, lighthousePosition } from './surveyEvaluator.js';
 
 const canvas = document.getElementById('game');
 const ctx = canvas.getContext('2d');
@@ -47,7 +48,7 @@ const camera = createCamera();
 let screen = 'menu'; // menu | briefing | flying | paused | help | over
 let menuIndex = 0;
 let showMinimap = true;
-let run = createMissionRun('M01');
+let run = createMissionRun('R01');
 let flash = null;
 let timeSec = 0;
 let restartHoldSec = 0;
@@ -100,9 +101,25 @@ function handleMissionEvents(events) {
       showFlash('AIRBORNE', 'Gear up in spirit — fly the gates', '#7fd08a');
       playClick(audio);
     } else if (e.type === 'gate') {
-      showFlash(`GATE +${e.gate.points}`, e.gate.label, '#7fd08a');
+      const acc = Math.round(e.accuracy * 100);
+      const combo = e.combo > 0 ? `  COMBO +${e.combo}` : '';
+      showFlash(`GATE +${e.points}  ${e.gate.kind.toUpperCase()} ${acc}%`, `${e.gate.label}${combo}`, '#7fd08a');
       spawnGateBurst(particles, e.gate.pos);
       playGateChime(audio);
+    } else if (e.type === 'fork') {
+      showFlash(`${e.fork.display} — CHOOSE ONE`, 'Open ring or Technical octagon — fly through one', '#ffd66e');
+      playClick(audio);
+    } else if (e.type === 'survey') {
+      const s = e.survey;
+      showFlash(`SURVEY A=${Math.round(s.accuracy * 100)}%`, `Precision ${Math.round(s.precision * 100)}%  Framing ${Math.round(s.framing * 100)}%`, '#4de2e6');
+      playGateChime(audio);
+    } else if (e.type === 'miss') {
+      showFlash(`MISSED −40`, e.gate ? `${e.gate.label} — retry ${e.retries}/2` : `${e.fork.display} — retry ${e.retries}/2`, '#e05a4e', 1.6);
+      playClick(audio);
+    } else if (e.type === 'gateSkipped') {
+      showFlash('GATE SKIPPED — 0 PTS', 'Two fails: the rally moves on without it', '#e05a4e', 2.6);
+    } else if (e.type === 'respawned') {
+      showFlash('SAFE-APPROACH RESPAWN', '150 m before the gate — fly it again', '#ffd66e', 1.8);
     } else if (e.type === 'touchdown') {
       const hard = e.landing.kind === 'hard' || e.landing.kind === 'crash';
       spawnTouchdownSmoke(particles, run.plane, hard);
@@ -157,8 +174,12 @@ function updateFlying(dt) {
     screen = 'paused';
     return;
   }
-  // Restart: hold R for 0.6 s.
+  // Restart: hold R for 0.6 s. A tap of R during a pending respawn
+  // fires the Safe-Approach Respawn at once instead of waiting.
   if (input.keys.has(CONTROLS.restart)) {
+    if (run.route.pendingRespawn) {
+      run.route.respawnTimerSec = 0;
+    }
     restartHoldSec += dt;
     if (restartHoldSec >= 0.6) {
       restartHoldSec = 0;
@@ -167,6 +188,20 @@ function updateFlying(dt) {
     }
   } else {
     restartHoldSec = 0;
+  }
+
+  // Survey framing, every frame: how centred the Pelican Bay lighthouse
+  // is in the view direction (the chase camera follows the nose, so the
+  // heading is the view). Only the survey fork's gates read this number.
+  {
+    const h = plane.headingDeg * (Math.PI / 180);
+    const pitch = (plane.pitchDeg || 0) * (Math.PI / 180);
+    const viewDir = {
+      x: Math.sin(h) * Math.cos(pitch),
+      y: Math.sin(pitch),
+      z: -Math.cos(h) * Math.cos(pitch),
+    };
+    run.surveyFraming = framingAccuracy(viewDir, plane.pos, lighthousePosition());
   }
 
   const { event } = updateFlightDynamics(plane, axes, dt, terrainHeight);
@@ -230,8 +265,8 @@ function frame(nowMs) {
   timeSec += dt;
 
   if (screen === 'menu') {
-    if (wasPressed(input, 'ArrowLeft') || wasPressed(input, 'KeyA')) menuIndex = (menuIndex + 2) % 3;
-    if (wasPressed(input, 'ArrowRight') || wasPressed(input, 'KeyD')) menuIndex = (menuIndex + 1) % 3;
+    if (wasPressed(input, 'ArrowLeft') || wasPressed(input, 'KeyA')) menuIndex = (menuIndex + MISSIONS.length - 1) % MISSIONS.length;
+    if (wasPressed(input, 'ArrowRight') || wasPressed(input, 'KeyD')) menuIndex = (menuIndex + 1) % MISSIONS.length;
     if (wasPressed(input, 'Enter')) {
       startBriefing(MISSIONS[menuIndex].id);
       playClick(audio);
@@ -285,7 +320,7 @@ function frame(nowMs) {
 // --- screenshot poses (?shot=1..4): freeze a real rendered frame ------------
 const shot = parseShotParam();
 if (shot) {
-  const missionId = shot === 3 ? 'M02' : 'M01';
+  const missionId = 'R01';
   run = createMissionRun(missionId);
   run.fromName = missionMenuData().find((m) => m.id === missionId).fromName;
   run.toName = missionMenuData().find((m) => m.id === missionId).toName;
@@ -327,4 +362,8 @@ window.__tidepost = {
     };
   },
   get progress() { return missionProgress(run); },
+  get routeCode() { return run.route.committed.map((c) => c ?? '?').join(''); },
+  get streak() { return run.route.streak; },
+  get misses() { return run.route.misses; },
+  get survey() { return run.route.survey; },
 };

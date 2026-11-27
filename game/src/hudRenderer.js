@@ -141,9 +141,62 @@ export function renderHud(ctx, hud) {
     : `▸ ${dest}  ${distKm} KM   BRG ${readout ? readout.bearingDeg : '—'}°   ⏱ ${mm}:${ss}`;
   ctx.fillText(targetLine, 640, 84);
 
+  const reportUp = run.phase === 'delivered' || run.phase === 'stranded' || run.phase === 'crashed';
+
+  // Rally line: route code so far, streak and combo, gates flown.
+  if (readout && run.phase !== 'delivered' && run.route) {
+    const route = run.route.committed.map((c) => c ?? '?').join('–');
+    const streak = run.route.streak > 1 ? `   STREAK ×${run.route.streak}` : '';
+    const miss = run.route.misses > 0 ? `   MISS −${run.route.misses * 40}` : '';
+    ctx.fillStyle = 'rgba(245,240,220,0.85)';
+    ctx.font = 'bold 15px system-ui, sans-serif';
+    ctx.fillText(`ROUTE ${route}   GATES ${readout.gatesPassed}/${readout.gatesTotal}${streak}${miss}`, 640, 108);
+  }
+
+  // Fork banner: 32 px minimum, up while the choice is open and close.
+  // The two branch chips spell out the bet: safe Open vs risky Technical.
+  if (readout && run.route && !reportUp) {
+    const slot = run.route.slots[run.route.slotIndex];
+    if (slot && slot.type === 'fork') {
+      const near = readout.distanceM < 900;
+      if (near || run.route.forkAnnounced[slot.fork.index]) {
+        const label = `${slot.fork.display} — CHOOSE ONE`;
+        ctx.fillStyle = 'rgba(10, 18, 28, 0.72)';
+        ctx.fillRect(640 - 260, 128, 520, 44);
+        ctx.strokeStyle = '#ffd66e';
+        ctx.lineWidth = 2;
+        ctx.strokeRect(641 - 260, 129, 520, 44);
+        ctx.fillStyle = '#ffd66e';
+        ctx.font = 'bold 32px system-ui, sans-serif';
+        ctx.fillText(label, 640, 150);
+        // Branch chips.
+        ctx.font = 'bold 16px system-ui, sans-serif';
+        ctx.fillStyle = '#4de2e6';
+        ctx.textAlign = 'left';
+        ctx.fillText('◀ OPEN 100–200', 392, 192);
+        ctx.fillStyle = '#ffc247';
+        ctx.textAlign = 'right';
+        ctx.fillText('TECHNICAL 18–218 ▶', 888, 192);
+        ctx.textAlign = 'center';
+        if (slot.fork.survey) {
+          ctx.fillStyle = '#f5f0dc';
+          ctx.font = 'bold 15px system-ui, sans-serif';
+          ctx.fillText('SURVEY — FRAME THE LIGHTHOUSE AS YOU PASS', 640, 216);
+          const f = Math.round((run.surveyFraming || 0) * 100);
+          ctx.fillStyle = 'rgba(10, 18, 28, 0.72)';
+          ctx.fillRect(640 - 110, 226, 220, 12);
+          ctx.fillStyle = f >= 50 ? '#7fd08a' : '#ffd66e';
+          ctx.fillRect(640 - 108, 228, 216 * (f / 100), 8);
+          ctx.fillStyle = '#f5f0dc';
+          ctx.font = '12px system-ui, sans-serif';
+          ctx.fillText(`FRAMING ${f}%`, 640, 254);
+        }
+      }
+    }
+  }
+
   // Airspeed left, altitude right — the two big numbers. Hidden once the
   // delivery report is up, so the panel never covers an instrument.
-  const reportUp = run.phase === 'delivered' || run.phase === 'stranded' || run.phase === 'crashed';
   if (!reportUp) {
     bigNumber(ctx, 36, 400, String(Math.round(plane.speedKt)), 'KT', 'AIRSPEED', 'left');
     const altFt = Math.max(0, Math.round(plane.pos.y * M_TO_FT));
@@ -158,14 +211,18 @@ export function renderHud(ctx, hud) {
 
   // Throttle bar, low-left beside the minimap (not under it).
   bar(ctx, 184, 660, 190, 22, plane.throttle, '#e78038', `THR ${Math.round(plane.throttle * 100)}%`);
-  const cargoColor = run.cargo.health >= 70 ? '#7fd08a' : run.cargo.health >= 40 ? '#ffd66e' : '#e05a4e';
-  bar(ctx, 1040, 16, 216, 22, run.cargo.health / 100, cargoColor, `CARGO ${cargoLabel(run.cargo)} ${Math.round(run.cargo.health)}%`);
-  const fuelColor = run.resources.fuel >= 35 ? '#7fb0c9' : run.resources.fuel >= 15 ? '#ffd66e' : '#e05a4e';
-  bar(ctx, 1040, 44, 216, 22, run.resources.fuel / 100, fuelColor, `FUEL ${Math.round(run.resources.fuel)}% ${fuelLabel(run.resources)}`);
+  // Cargo / fuel / damage bars hide with the report, which covers
+  // that corner (the tall rally report reaches y=40).
+  if (!reportUp) {
+    const cargoColor = run.cargo.health >= 70 ? '#7fd08a' : run.cargo.health >= 40 ? '#ffd66e' : '#e05a4e';
+    bar(ctx, 1040, 16, 216, 22, run.cargo.health / 100, cargoColor, `CARGO ${cargoLabel(run.cargo)} ${Math.round(run.cargo.health)}%`);
+    const fuelColor = run.resources.fuel >= 35 ? '#7fb0c9' : run.resources.fuel >= 15 ? '#ffd66e' : '#e05a4e';
+    bar(ctx, 1040, 44, 216, 22, run.resources.fuel / 100, fuelColor, `FUEL ${Math.round(run.resources.fuel)}% ${fuelLabel(run.resources)}`);
 
-  // Damage, under fuel, only when it matters.
-  if (run.resources.damage > 0) {
-    bar(ctx, 1040, 72, 216, 22, run.resources.damage / 100, '#e05a4e', `DAMAGE ${Math.round(run.resources.damage)}%`);
+    // Damage, under fuel, only when it matters.
+    if (run.resources.damage > 0) {
+      bar(ctx, 1040, 72, 216, 22, run.resources.damage / 100, '#e05a4e', `DAMAGE ${Math.round(run.resources.damage)}%`);
+    }
   }
 
   // Glide needles, low-right; minimap lives low-left (minimapRenderer).
